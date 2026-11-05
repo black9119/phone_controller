@@ -32,31 +32,31 @@ class _CCallerScreenState extends State<CCallerScreen> {
   }
 
   Future<void> _initZego() async {
-    // 初始化 ZEGO 引擎
-    await ZegoExpressEngine.createEngineWithProfile(
-      ZegoEngineProfile(appID, ZegoScenario.StandardVoiceCall,
-          appSign: appSign),
-    );
+    try {
+      await ZegoExpressEngine.createEngineWithProfile(
+        ZegoEngineProfile(appID, ZegoScenario.StandardVoiceCall,
+            appSign: appSign),
+      );
 
-    // 开启耳返（如果你戴蓝牙耳机，能实时听到自己变声）
-    await ZegoExpressEngine.instance.enableHeadphoneMonitor(true);
+      await ZegoExpressEngine.instance.enableHeadphoneMonitor(true);
 
-    // 监听 B 端发来的呼叫信令 (修复：使用正确的 3 个参数)
-    ZegoExpressEngine.onIMRecvCustomCommand =
-        (String roomID, ZegoUser fromUser, String command) {
-      final json = jsonDecode(command);
-      if (json['action'] == 'incoming_call') {
-        setState(() {
-          _isRinging = true;
-          _incomingNumber = json['number'] ?? '未知号码';
-          _roomID = json['room_id'];
-        });
-      }
-    };
+      ZegoExpressEngine.onIMRecvCustomCommand =
+          (String roomID, ZegoUser fromUser, String command) {
+        final json = jsonDecode(command);
+        if (json['action'] == 'incoming_call') {
+          setState(() {
+            _isRinging = true;
+            _incomingNumber = json['number'] ?? '未知号码';
+            _roomID = json['room_id'];
+          });
+        }
+      };
 
-    // 登录控制房间待命
-    await ZegoExpressEngine.instance
-        .loginRoom(_controlRoomID, ZegoUser("C_user", "C端"));
+      await ZegoExpressEngine.instance
+          .loginRoom(_controlRoomID, ZegoUser("C_user", "C端"));
+    } catch (e) {
+      debugPrint("ZEGO 初始化失败: $e");
+    }
   }
 
   Future<void> _acceptCall() async {
@@ -66,13 +66,11 @@ class _CCallerScreenState extends State<CCallerScreen> {
     });
     _startTimer();
 
-    // 退出控制房间，进入通话房间
     await ZegoExpressEngine.instance.logoutRoom(_controlRoomID);
     await ZegoExpressEngine.instance
         .loginRoom(_roomID, ZegoUser("C_user", "C端"));
     await ZegoExpressEngine.instance.startPublishingStream("C_stream");
 
-    // 监听房间内 B 端的流并拉取
     ZegoExpressEngine.onRoomStreamUpdate =
         (roomID, updateType, streamList, extendedData) {
       if (updateType == ZegoUpdateType.Add) {
@@ -99,11 +97,9 @@ class _CCallerScreenState extends State<CCallerScreen> {
     _timer?.cancel();
     ZegoExpressEngine.instance.stopPublishingStream();
     ZegoExpressEngine.instance.logoutRoom(_roomID);
-    // 挂断后回到控制房间待命
     ZegoExpressEngine.instance
         .loginRoom(_controlRoomID, ZegoUser("C_user", "C端"));
 
-    // 保存通话记录
     CallLogManager.saveRecord({
       'number': _incomingNumber,
       'time': DateTime.now().toIso8601String(),
@@ -130,7 +126,6 @@ class _CCallerScreenState extends State<CCallerScreen> {
   @override
   void dispose() {
     _timer?.cancel();
-    // 修复：使用静态方法销毁引擎
     ZegoExpressEngine.destroyEngine();
     super.dispose();
   }
