@@ -21,7 +21,7 @@ class _CCallerScreenState extends State<CCallerScreen> {
   bool _isMuted = false;
 
   // ⚠️ 填入你的 ZEGO 配置
-  final int appID = 000000000;
+  final int appID = 000000000; 
   final String appSign = "your_app_sign_here";
   final String _controlRoomID = "CALL_CONTROL_ROOM_888";
 
@@ -34,6 +34,7 @@ class _CCallerScreenState extends State<CCallerScreen> {
   Future<void> _initZego() async {
     try {
       await ZegoExpressEngine.createEngineWithProfile(
+<<<<<<< HEAD
         ZegoEngineProfile(appID, ZegoScenario.StandardVoiceCall,
             appSign: appSign),
       );
@@ -54,25 +55,49 @@ class _CCallerScreenState extends State<CCallerScreen> {
 
       await ZegoExpressEngine.instance
           .loginRoom(_controlRoomID, ZegoUser("C_user", "C端"));
+=======
+        ZegoEngineProfile(appID, ZegoScenario.StandardVoiceCall, appSign: appSign),
+      );
+      
+      await ZegoExpressEngine.instance.enableHeadphoneMonitor(true);
+
+      ZegoExpressEngine.onIMRecvCustomCommand = (String roomID, ZegoUser fromUser, String command) {
+        final json = jsonDecode(command);
+        if (json['action'] == 'incoming_call') {
+          setState(() {
+            _isRinging = true;
+            _incomingNumber = json['number'] ?? '未知号码';
+            _roomID = json['room_id'];
+          });
+        }
+      };
+
+      await ZegoExpressEngine.instance.loginRoom(_controlRoomID, ZegoUser("C_user", "C端"));
+>>>>>>> 6f7f2b05df326285296c17bf5282719419665c81
     } catch (e) {
       debugPrint("ZEGO 初始化失败: $e");
     }
   }
 
   Future<void> _acceptCall() async {
-    setState(() {
-      _isRinging = false;
-      _isInCall = true;
-    });
+    setState(() { _isRinging = false; _isInCall = true; });
     _startTimer();
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 6f7f2b05df326285296c17bf5282719419665c81
     await ZegoExpressEngine.instance.logoutRoom(_controlRoomID);
-    await ZegoExpressEngine.instance
-        .loginRoom(_roomID, ZegoUser("C_user", "C端"));
+    await ZegoExpressEngine.instance.loginRoom(_roomID, ZegoUser("C_user", "C端"));
     await ZegoExpressEngine.instance.startPublishingStream("C_stream");
+<<<<<<< HEAD
 
     ZegoExpressEngine.onRoomStreamUpdate =
         (roomID, updateType, streamList, extendedData) {
+=======
+    
+    ZegoExpressEngine.onRoomStreamUpdate = (roomID, updateType, streamList, extendedData) {
+>>>>>>> 6f7f2b05df326285296c17bf5282719419665c81
       if (updateType == ZegoUpdateType.Add) {
         for (var stream in streamList) {
           if (stream.streamID.contains("B_stream")) {
@@ -86,10 +111,7 @@ class _CCallerScreenState extends State<CCallerScreen> {
   void _startTimer() {
     _callDuration = 0;
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted)
-        setState(() {
-          _callDuration++;
-        });
+      if (mounted) setState(() { _callDuration++; });
     });
   }
 
@@ -97,8 +119,12 @@ class _CCallerScreenState extends State<CCallerScreen> {
     _timer?.cancel();
     ZegoExpressEngine.instance.stopPublishingStream();
     ZegoExpressEngine.instance.logoutRoom(_roomID);
+<<<<<<< HEAD
     ZegoExpressEngine.instance
         .loginRoom(_controlRoomID, ZegoUser("C_user", "C端"));
+=======
+    ZegoExpressEngine.instance.loginRoom(_controlRoomID, ZegoUser("C_user", "C端"));
+>>>>>>> 6f7f2b05df326285296c17bf5282719419665c81
 
     CallLogManager.saveRecord({
       'number': _incomingNumber,
@@ -126,7 +152,11 @@ class _CCallerScreenState extends State<CCallerScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+<<<<<<< HEAD
     ZegoExpressEngine.destroyEngine();
+=======
+    ZegoExpressEngine.destroyEngine(); 
+>>>>>>> 6f7f2b05df326285296c17bf5282719419665c81
     super.dispose();
   }
 
@@ -147,29 +177,20 @@ class _CCallerScreenState extends State<CCallerScreen> {
             children: [
               const Icon(Icons.phone_in_talk, size: 80, color: Colors.green),
               const SizedBox(height: 20),
-              Text('来自: $_incomingNumber',
-                  style: const TextStyle(fontSize: 32, color: Colors.white)),
+              Text('来自: $_incomingNumber', style: const TextStyle(fontSize: 32, color: Colors.white)),
               const SizedBox(height: 60),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        shape: const CircleBorder(),
-                        padding: const EdgeInsets.all(24)),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shape: const CircleBorder(), padding: const EdgeInsets.all(24)),
                     onPressed: () => setState(() => _isRinging = false),
-                    child: const Icon(Icons.call_end,
-                        color: Colors.white, size: 36),
+                    child: const Icon(Icons.call_end, color: Colors.white, size: 36),
                   ),
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        shape: const CircleBorder(),
-                        padding: const EdgeInsets.all(24)),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: const CircleBorder(), padding: const EdgeInsets.all(24)),
                     onPressed: _acceptCall,
-                    child:
-                        const Icon(Icons.call, color: Colors.white, size: 36),
+                    child: const Icon(Icons.call, color: Colors.white, size: 36),
                   ),
                 ],
               )
@@ -187,11 +208,9 @@ class _CCallerScreenState extends State<CCallerScreen> {
           children: [
             const CircleAvatar(radius: 60, child: Icon(Icons.person, size: 70)),
             const SizedBox(height: 20),
-            Text(_incomingNumber,
-                style: const TextStyle(fontSize: 32, color: Colors.white)),
+            Text(_incomingNumber, style: const TextStyle(fontSize: 32, color: Colors.white)),
             const SizedBox(height: 10),
-            Text(_formatDuration(_callDuration),
-                style: const TextStyle(fontSize: 18, color: Colors.grey)),
+            Text(_formatDuration(_callDuration), style: const TextStyle(fontSize: 18, color: Colors.grey)),
             const Spacer(),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -201,25 +220,21 @@ class _CCallerScreenState extends State<CCallerScreen> {
                   label: "静音",
                   isActive: _isMuted,
                   onTap: () {
-                    setState(() {
-                      _isMuted = !_isMuted;
-                    });
+                    setState(() { _isMuted = !_isMuted; });
                     ZegoExpressEngine.instance.muteMicrophone(_isMuted);
                   },
                 ),
                 _buildActionIcon(
-                    icon: Icons.tune,
-                    label: "变声调音台",
-                    isActive: true,
-                    onTap: _showVoiceChanger),
+                  icon: Icons.tune, 
+                  label: "变声调音台", 
+                  isActive: true,
+                  onTap: _showVoiceChanger
+                ),
               ],
             ),
             const SizedBox(height: 40),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  shape: const CircleBorder(),
-                  padding: const EdgeInsets.all(24)),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shape: const CircleBorder(), padding: const EdgeInsets.all(24)),
               onPressed: _stopCall,
               child: const Icon(Icons.call_end, color: Colors.white, size: 36),
             ),
@@ -231,17 +246,11 @@ class _CCallerScreenState extends State<CCallerScreen> {
 
     return const Scaffold(
       backgroundColor: Colors.black,
-      body: Center(
-          child: Text('C端待命中...',
-              style: TextStyle(color: Colors.green, fontSize: 18))),
+      body: Center(child: Text('C端待命中...', style: TextStyle(color: Colors.green, fontSize: 18))),
     );
   }
 
-  Widget _buildActionIcon(
-      {required IconData icon,
-      required String label,
-      required bool isActive,
-      required VoidCallback onTap}) {
+  Widget _buildActionIcon({required IconData icon, required String label, required bool isActive, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -249,12 +258,10 @@ class _CCallerScreenState extends State<CCallerScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color:
-                  isActive ? Colors.green.withOpacity(0.3) : Colors.grey[800],
+              color: isActive ? Colors.green.withOpacity(0.3) : Colors.grey[800],
               shape: BoxShape.circle,
             ),
-            child: Icon(icon,
-                color: isActive ? Colors.greenAccent : Colors.white, size: 30),
+            child: Icon(icon, color: isActive ? Colors.greenAccent : Colors.white, size: 30),
           ),
           const SizedBox(height: 8),
           Text(label, style: const TextStyle(color: Colors.white)),
