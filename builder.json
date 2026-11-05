@@ -1,0 +1,22 @@
+{
+  "project": "y",
+  "platform": "ios",
+  "github": {
+    "owner": "black9119",
+    "repo": "phone_controller"
+  },
+  "provider": "github",
+  "codemagic": {},
+  "bitrise": {},
+  "ios": {
+    "path": "ios",
+    "bundleId": "com.example.phoneController"
+  },
+  "flutter": {
+    "version": "y",
+    "watch": {}
+  },
+  "reactNative": {},
+  "kmp": {},
+  "mobai": {}
+}
