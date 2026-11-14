@@ -8,6 +8,7 @@ import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Button
@@ -29,11 +30,12 @@ class FloatingWindowService : Service() {
     override fun onCreate() {
         super.onCreate()
         startForegroundServiceCompat()
-        connectToB()
         initFloatingWindow()
+        // 首次尝试连接
+        connectBluetooth()
     }
 
-    private fun connectToB() {
+    private fun connectBluetooth() {
         val adapter = BluetoothAdapter.getDefaultAdapter()
         if (adapter == null || !adapter.isEnabled) {
             showToast("请开启手机蓝牙")
@@ -43,25 +45,31 @@ class FloatingWindowService : Service() {
         Thread {
             try {
                 var targetDevice: BluetoothDevice? = null
+                // 遍历已配对设备
                 for (device in adapter.bondedDevices) {
-                    if (device.name.contains("B") || device.name.contains("Phone")) {
+                    val name = device.name ?: ""
+                    if (name.contains("B") || name.contains("Phone") || name.contains("iPhone") || name.contains("Android")) {
                         targetDevice = device
                         break
                     }
                 }
 
-                if (targetDevice != null) {
-                    bluetoothSocket = targetDevice.createRfcommSocketToServiceRecord(MY_UUID)
-                    adapter.cancelDiscovery()
-                    bluetoothSocket?.connect()
-                    outputStream = bluetoothSocket?.outputStream
-                    isConnected = true
-                    showToast("蓝牙已连接: ${targetDevice.name}")
-                } else {
-                    showToast("找不到配对设备，请先在系统蓝牙中配对")
+                if (targetDevice == null) {
+                    runOnUiThread { showToast("未找到已配对的B端，请去系统蓝牙设置中配对") }
+                    return@Thread
                 }
+
+                // 建立 RFCOMM 通道
+                bluetoothSocket = targetDevice.createRfcommSocketToServiceRecord(MY_UUID)
+                adapter.cancelDiscovery()
+                bluetoothSocket?.connect()
+                outputStream = bluetoothSocket?.outputStream
+                isConnected = true
+                runOnUiThread { showToast("蓝牙连接成功: ${targetDevice.name}") }
             } catch (e: Exception) {
-                showToast("蓝牙连接失败: ${e.message}")
+                isConnected = false
+                runOnUiThread { showToast("连接失败，请确保B端App在前台运行") }
+                Log.e("Bluetooth", "连接异常: ${e.message}")
             }
         }.start()
     }
@@ -95,7 +103,6 @@ class FloatingWindowService : Service() {
             setPadding(20, 20, 20, 20)
         }
         
-        // 这里就是你想要的 7 个按钮！
         val buttons = listOf(
             "APP语音拨号" to "voip",
             "真实电话拨号" to "real",
@@ -120,16 +127,18 @@ class FloatingWindowService : Service() {
                         return@setOnClickListener
                     }
                     
+                    // 如果没连上，点击按钮时重新尝试连接一次
                     if (!isConnected) {
-                        showToast("蓝牙未连接")
+                        connectBluetooth()
+                        showToast("正在尝试重新连接...")
                         return@setOnClickListener
                     }
                     
                     try {
                         outputStream?.write("$cmd\n".toByteArray())
-                        showToast("已发送指令: $text")
+                        showToast("已发送: $text")
                     } catch (e: Exception) {
-                        showToast("发送失败: ${e.message}")
+                        showToast("发送失败: 蓝牙可能已断开")
                         isConnected = false
                     }
                 }

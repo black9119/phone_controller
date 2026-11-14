@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_screen.dart';
+import 'ble_service.dart';
 
 class DialerScreen extends StatefulWidget {
   const DialerScreen({super.key});
@@ -15,6 +16,7 @@ class _DialerScreenState extends State<DialerScreen> {
   String _role = '';
   bool _isCalling = false;
   
+  final BleService _bleService = BleService();
   static const platform = MethodChannel('com.example.my_dialer/command_channel');
 
   final Map<String, String> _letters = {
@@ -26,18 +28,6 @@ class _DialerScreenState extends State<DialerScreen> {
   void initState() {
     super.initState();
     _loadRole();
-    
-    platform.setMethodCallHandler((call) async {
-      if (call.method == 'onBleCommand') {
-        String command = call.arguments as String;
-        if (command == 'real' || command == 'voip' || command == 'busy' || command == 'empty') {
-          setState(() {
-            _isCalling = true;
-            _inputNumber = '10086';
-          });
-        }
-      }
-    });
   }
 
   Future<void> _loadRole() async {
@@ -46,11 +36,11 @@ class _DialerScreenState extends State<DialerScreen> {
     setState(() => _role = role);
 
     if (role == 'B') {
-      try {
-        await platform.invokeMethod('startBleServer');
-      } catch (e) {
-        debugPrint("开启蓝牙服务端失败: $e");
-      }
+      // 苹果 B 端：开启 BLE 广播等待连接
+      await _bleService.startPeripheral();
+    } else if (role == 'A') {
+      // 安卓 A 端：可以尝试自动连接（也可以放在按钮点击里）
+      // _bleService.scanAndConnect();
     }
   }
 
@@ -81,6 +71,7 @@ class _DialerScreenState extends State<DialerScreen> {
     Color keyBgColor = isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE5E5EA);
     Color keyTextColor = isDark ? Colors.white : Colors.black;
 
+    // B端“正在呼叫”完美伪装界面
     if (_isCalling) {
       return Scaffold(
         body: Container(
@@ -240,10 +231,16 @@ class _DialerScreenState extends State<DialerScreen> {
                   : const SizedBox(),
               ),
               GestureDetector(
-                onTap: () {
+                onTap: () async {
                   if (_inputNumber.isNotEmpty) {
                     if (_role == 'A') {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请在悬浮窗上点击发送指令')));
+                      bool connected = await _bleService.scanAndConnect();
+                      if (connected) {
+                         await _bleService.sendCommand('real');
+                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('蓝牙已发送指令')));
+                      } else {
+                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('蓝牙未找到B端，请确保B端已打开广播')));
+                      }
                     } else if (_role == 'B') {
                       setState(() => _isCalling = true);
                     }
