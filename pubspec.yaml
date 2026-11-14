@@ -11,8 +11,8 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.2.3
+  web_socket_channel: ^2.4.0
   flutter_blue_plus: 1.31.15
-  flutter_ble_peripheral: 3.1.0
 
 dev_dependencies:
   flutter_test:
