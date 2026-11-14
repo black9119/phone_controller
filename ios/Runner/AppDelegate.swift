@@ -1,12 +1,12 @@
-import UIKit
 import Flutter
+import UIKit
 import CoreBluetooth
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, CBPeripheralManagerDelegate {
-  var peripheralManager: CBPeripheralManager?
-  var characteristic: CBMutableCharacteristic?
-  var flutterChannel: FlutterMethodChannel?
+  private var peripheralManager: CBPeripheralManager?
+  private var serviceUUID = CBUUID(string: "0000FFE0-0000-1000-8000-00805F9B34FB")
+  private var characteristicUUID = CBUUID(string: "0000FFE1-0000-1000-8000-00805F9B34FB")
 
   override func application(
     _ application: UIApplication,
@@ -14,59 +14,47 @@ import CoreBluetooth
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
     
-    let controller = window?.rootViewController as! FlutterViewController
-    flutterChannel = FlutterMethodChannel(name: "com.example.my_dialer/command_channel", binaryMessenger: controller.binaryMessenger)
-    
-    flutterChannel?.setMethodCallHandler { [weak self] (call, result) in
-        if call.method == "startIosBleBroadcast" {
-            self?.startAdvertising()
-            result("Started")
-        } else {
-            result(FlutterMethodNotImplemented)
-        }
-    }
+    // 初始化 BLE 外设
+    peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  func startAdvertising() {
-    peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
-  }
-
+  // 蓝牙状态改变回调
   func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
     if peripheral.state == .poweredOn {
-      // 设置特征值，允许 A 端写入
-      characteristic = CBMutableCharacteristic(
-        type: CBUUID(string: "0000FFE1-0000-1000-8000-00805F9B34FB"),
-        properties: [.write, .read, .notify],
+      // 开启广播
+      let service = CBMutableService(type: serviceUUID, primary: true)
+      let characteristic = CBMutableCharacteristic(
+        type: characteristicUUID,
+        properties: [.write],
         value: nil,
-        permissions: [.writeable, .readable]
+        permissions: [.writeable]
       )
-
-      let service = CBMutableService(type: CBUUID(string: "0000FFE0-0000-1000-8000-00805F9B34FB"), primary: true)
-      service.characteristics = [characteristic!]
-      peripheralManager?.add(service)
-
-      // 开始广播，名字叫 MyDialer_B
-      peripheralManager?.startAdvertising([
-        CBAdvertisementDataServiceUUIDsKey: [CBUUID(string: "0000FFE0-0000-1000-8000-00805F9B34FB")],
+      service.characteristics = [characteristic]
+      peripheral.add(service)
+      
+      peripheral.startAdvertising([
+        CBAdvertisementDataServiceUUIDsKey: [serviceUUID],
         CBAdvertisementDataLocalNameKey: "MyDialer_B"
       ])
-      print("iOS BLE 广播已启动")
     }
   }
 
-  // 监听 A 端发来的数据
+  // 收到 A 端写入的数据
   func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
     for request in requests {
-      if let data = request.value {
-        let command = String(data: data, encoding: .utf8)
-        if command == "real" {
-          // 给 Flutter 发送指令，触发变脸
-          flutterChannel?.invokeMethod("onBleCommand", arguments: "real")
+      // 关键修复：加上 `?` 进行可选链解包，防止 nil 崩溃
+      peripheral.respond(to: request, withResult: .success)
+      
+      if let data = request.value, let command = String(data: data, encoding: .utf8) {
+        print("iOS 收到指令: \(command)")
+        // 这里可以发送通知给 Flutter 层触发变脸
+        if let controller = window?.rootViewController as? FlutterViewController {
+          let channel = FlutterMethodChannel(name: "com.example.my_dialer/command_channel", binaryMessenger: controller.binaryMessenger)
+          channel.invokeMethod("onBleCommand", arguments: command)
         }
       }
-      peripheralManager.respond(to: request, withResult: .success)
     }
   }
 }
