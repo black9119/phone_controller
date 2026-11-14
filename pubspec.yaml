@@ -12,7 +12,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.2.3
   flutter_blue_plus: 1.31.15
-  flutter_ble_peripheral: ^1.2.5  # 这是苹果发广播的救星
+  flutter_ble_peripheral: ^3.1.0
 
 dev_dependencies:
   flutter_test:

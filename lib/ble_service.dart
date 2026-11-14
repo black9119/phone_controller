@@ -3,35 +3,28 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 
 class BleService {
-  // 统一的服务 UUID
   static final Guid serviceUuid = Guid("0000ffe0-0000-1000-8000-00805f9b34fb");
   static final Guid charUuid = Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
 
   final FlutterBlePeripheral _peripheral = FlutterBlePeripheral();
   BluetoothDevice? connectedDevice;
-  
-  // B端接收指令的回调
   Function(String command)? onCommandReceived;
 
-  // ================= A 端（安卓）：扫描并连接 =================
+  // A 端扫描连接（保持不变）
   Future<bool> scanAndConnect() async {
     try {
       await FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
       BluetoothDevice? target;
-
       FlutterBluePlus.scanResults.listen((results) {
         for (ScanResult r in results) {
-          // 找 B 端的广播名字
-          if (r.device.advName.contains("MyDialer_B") || r.device.name.contains("MyDialer_B")) {
+          if (r.device.advName.contains("MyDialer_B")) {
             target = r.device;
             break;
           }
         }
       });
-
       await Future.delayed(const Duration(seconds: 15));
       await FlutterBluePlus.stopScan();
-
       if (target != null) {
         await target!.connect();
         connectedDevice = target;
@@ -43,7 +36,6 @@ class BleService {
     return false;
   }
 
-  // A 端发送指令
   Future<void> sendCommand(String cmd) async {
     if (connectedDevice == null) return;
     try {
@@ -63,37 +55,29 @@ class BleService {
     }
   }
 
-  // ================= B 端（苹果）：开启真正的广播 =================
+  // B 端广播（3.x 标准写法）
   Future<void> startBroadcasting() async {
     try {
-      // 监听 A 端发来的数据
-      _peripheral.onDataReceived.listen((event) {
+      _peripheral.onDataReceived.listen((data) {
         if (onCommandReceived != null) {
-          // 将收到的字节转为字符串触发回调
-          String cmd = String.fromCharCodes(event.data);
-          onCommandReceived!(cmd);
+          onCommandReceived!(String.fromCharCodes(data));
         }
       });
 
-      // 开启广播，让安卓能搜到
-      await _peripheral.startAdvertising(
-        advertiseData: AdvertiseData(
-          serviceUuid: "0000ffe0-0000-1000-8000-00805f9b34fb",
+      await _peripheral.start(
+        advertiseData: const AdvertiseDataCore(
           localName: "MyDialer_B",
+          serviceUuid: "0000ffe0-0000-1000-8000-00805f9b34fb",
         ),
-        settings: const AdvertiseSettings(
-          connectable: true,
-          timeout: Duration(minutes: 0), // 永不超时
-        ),
+        gattServer: const GattServerSettings(),
       );
-      print("B端广播已开启，设备名: MyDialer_B");
+      print("B端广播已开启");
     } catch (e) {
-      print("B端开启广播失败: $e");
+      print("B端广播失败: $e");
     }
   }
 
-  // 停止广播
   Future<void> stopBroadcasting() async {
-    await _peripheral.stopAdvertising();
+    await _peripheral.stop();
   }
 }

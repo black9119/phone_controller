@@ -82,10 +82,10 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_ble_peripheral
-      sha256: ba329874b295e3751666e3aebbf951aa759a6e7009754f5d980f668befa92b9b
+      sha256: "37e7367acc8f43c42897794cac315e853c602840c14325ef6b6b62f8d77f5637"
       url: "https://mirrors.cloud.tencent.com/dart-pub/"
     source: hosted
-    version: "1.2.6"
+    version: "3.2.0"
   flutter_blue_plus:
     dependency: "direct main"
     description:
