@@ -11,8 +11,7 @@ class MyApp extends StatelessWidget {
       title: '伪装电话',
       debugShowCheckedModeBanner: false,
       theme: ThemeData.light().copyWith(scaffoldBackgroundColor: Colors.white),
-      darkTheme:
-          ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black),
+      darkTheme: ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black),
       themeMode: ThemeMode.system,
       home: const DialerScreen(),
     );

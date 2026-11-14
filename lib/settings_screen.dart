@@ -21,8 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setString('device_role', role);
     setState(() => _role = role);
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('已选为 $role 端，重启App生效')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('已选为 $role 端，重启App生效')));
   }
 
   @override
@@ -31,18 +30,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       appBar: AppBar(title: const Text('隐藏设置页')),
       body: ListView(
         children: [
-          ListTile(
-              title: const Text('当前角色'),
-              subtitle: Text(_role,
-                  style: const TextStyle(
-                      color: Colors.blue, fontWeight: FontWeight.bold))),
+          ListTile(title: const Text('当前角色'), subtitle: Text(_role, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
           const Divider(),
-          ListTile(
-              title: const Text('选为 A 端 (安卓控制端)'), onTap: () => _setRole('A')),
-          ListTile(
-              title: const Text('选为 B 端 (伪装执行端)'), onTap: () => _setRole('B')),
-          ListTile(
-              title: const Text('选为 C 端 (变声端)'), onTap: () => _setRole('C')),
+          ListTile(title: const Text('选为 A 端 (安卓控制端)'), onTap: () => _setRole('A')),
+          ListTile(title: const Text('选为 B 端 (伪装执行端)'), onTap: () => _setRole('B')),
+          ListTile(title: const Text('选为 C 端 (变声端)'), onTap: () => _setRole('C')),
         ],
       ),
     );
