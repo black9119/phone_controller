@@ -31,7 +31,6 @@ class FloatingWindowService : Service() {
         super.onCreate()
         startForegroundServiceCompat()
         initFloatingWindow()
-        // 首次尝试连接
         connectBluetooth()
     }
 
@@ -45,7 +44,6 @@ class FloatingWindowService : Service() {
         Thread {
             try {
                 var targetDevice: BluetoothDevice? = null
-                // 遍历已配对设备
                 for (device in adapter.bondedDevices) {
                     val name = device.name ?: ""
                     if (name.contains("B") || name.contains("Phone") || name.contains("iPhone") || name.contains("Android")) {
@@ -55,21 +53,22 @@ class FloatingWindowService : Service() {
                 }
 
                 if (targetDevice == null) {
-                    runOnUiThread { showToast("未找到已配对的B端，请去系统蓝牙设置中配对") }
+                    // 修复点 1：去掉 runOnUiThread
+                    android.os.Handler(mainLooper).post { showToast("未找到已配对的B端") }
                     return@Thread
                 }
 
-                // 建立 RFCOMM 通道
                 bluetoothSocket = targetDevice.createRfcommSocketToServiceRecord(MY_UUID)
                 adapter.cancelDiscovery()
                 bluetoothSocket?.connect()
                 outputStream = bluetoothSocket?.outputStream
                 isConnected = true
-                runOnUiThread { showToast("蓝牙连接成功: ${targetDevice.name}") }
+                // 修复点 2：去掉 runOnUiThread
+                android.os.Handler(mainLooper).post { showToast("蓝牙连接成功: ${targetDevice.name}") }
             } catch (e: Exception) {
                 isConnected = false
-                runOnUiThread { showToast("连接失败，请确保B端App在前台运行") }
-                Log.e("Bluetooth", "连接异常: ${e.message}")
+                // 修复点 3：去掉 runOnUiThread
+                android.os.Handler(mainLooper).post { showToast("连接失败: ${e.message}") }
             }
         }.start()
     }
@@ -127,10 +126,8 @@ class FloatingWindowService : Service() {
                         return@setOnClickListener
                     }
                     
-                    // 如果没连上，点击按钮时重新尝试连接一次
                     if (!isConnected) {
-                        connectBluetooth()
-                        showToast("正在尝试重新连接...")
+                        showToast("蓝牙未连接")
                         return@setOnClickListener
                     }
                     
@@ -138,7 +135,7 @@ class FloatingWindowService : Service() {
                         outputStream?.write("$cmd\n".toByteArray())
                         showToast("已发送: $text")
                     } catch (e: Exception) {
-                        showToast("发送失败: 蓝牙可能已断开")
+                        showToast("发送失败: ${e.message}")
                         isConnected = false
                     }
                 }

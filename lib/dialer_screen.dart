@@ -14,7 +14,7 @@ class _DialerScreenState extends State<DialerScreen> {
   int _currentIndex = 3; 
   String _inputNumber = '';
   String _role = '';
-  bool _isCalling = false;
+  bool _isIncoming = false; // B端是否显示来电
   
   final BleService _bleService = BleService();
   static const platform = MethodChannel('com.example.my_dialer/command_channel');
@@ -28,6 +28,15 @@ class _DialerScreenState extends State<DialerScreen> {
   void initState() {
     super.initState();
     _loadRole();
+    
+    // B端监听从原生（或底层BLE）传上来的指令
+    platform.setMethodCallHandler((call) async {
+      if (call.method == 'onBleCommand') {
+        setState(() {
+          _isIncoming = true; // 触发变脸
+        });
+      }
+    });
   }
 
   Future<void> _loadRole() async {
@@ -36,18 +45,15 @@ class _DialerScreenState extends State<DialerScreen> {
     setState(() => _role = role);
 
     if (role == 'B') {
-      // 苹果 B 端：开启 BLE 广播等待连接
-      await _bleService.startPeripheral();
-    } else if (role == 'A') {
-      // 安卓 A 端：可以尝试自动连接（也可以放在按钮点击里）
-      // _bleService.scanAndConnect();
+      // B端启动 BLE 广播
+      await _bleService.startBleBroadcast();
     }
   }
 
   Future<void> _startFloatingWindow() async {
     try {
       await platform.invokeMethod('startFloatingWindow');
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('悬浮窗已启动，请切回桌面')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('悬浮窗已启动')));
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('拉起失败: $e')));
     }
@@ -64,74 +70,70 @@ class _DialerScreenState extends State<DialerScreen> {
   @override
   Widget build(BuildContext context) {
     bool isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    Color bgColorTop = isDark ? const Color(0xFF1C1C1E) : Colors.white;
-    Color bgColorBottom = isDark ? const Color(0xFF151515) : const Color(0xFFF2F2F7);
+    Color bgColor = isDark ? Colors.black : Colors.white;
     Color textColor = isDark ? Colors.white : Colors.black;
-    Color keyBgColor = isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE5E5EA);
-    Color keyTextColor = isDark ? Colors.white : Colors.black;
+    Color keyBgColor = isDark ? const Color(0xFF333333) : const Color(0xFFE5E5EA);
 
-    // B端“正在呼叫”完美伪装界面
-    if (_isCalling) {
+    // ================= B端（苹果）：完美接听变脸界面 =================
+    if (_role == 'B' && _isIncoming) {
       return Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: isDark ? [const Color(0xFF2C2C2E), const Color(0xFF000000)] : [Colors.white, const Color(0xFFF2F2F7)],
-            ),
-          ),
-          child: SafeArea(
-            child: Column(
-              children: [
-                const SizedBox(height: 60),
-                Text('正在呼叫...', style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 16, letterSpacing: 1.2)),
-                const SizedBox(height: 10),
-                Text(_inputNumber, style: TextStyle(color: textColor, fontSize: 44, fontWeight: FontWeight.w400, letterSpacing: 2)),
-                const Spacer(flex: 2),
-                Column(
-                  children: [
-                    GestureDetector(
-                      onTap: () => setState(() => _isCalling = false),
-                      child: Container(
-                        width: 75, height: 75,
-                        decoration: const BoxDecoration(color: Color(0xFFFF3B30), shape: BoxShape.circle),
-                        child: const Icon(Icons.call_end, color: Colors.white, size: 36),
-                      ),
+        backgroundColor: const Color(0xFF1C1C1E),
+        body: SafeArea(
+          child: Column(
+            children: [
+              const SizedBox(height: 40),
+              const Text('来电', style: TextStyle(color: Colors.white54, fontSize: 18)),
+              const SizedBox(height: 10),
+              Text(_inputNumber.isEmpty ? '10086' : _inputNumber, 
+                style: const TextStyle(color: Colors.white, fontSize: 44, fontWeight: FontWeight.w300)),
+              const Spacer(),
+              // 接听与挂断按钮
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  // 挂断
+                  GestureDetector(
+                    onTap: () => setState(() => _isIncoming = false),
+                    child: Container(
+                      width: 75, height: 75,
+                      decoration: const BoxDecoration(color: Color(0xFFFF3B30), shape: BoxShape.circle),
+                      child: const Icon(Icons.call_end, color: Colors.white, size: 36),
                     ),
-                    const SizedBox(height: 12),
-                    Text('结束', style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 12)),
-                  ],
-                ),
-                const SizedBox(height: 50),
-              ],
-            ),
+                  ),
+                  // 接听
+                  GestureDetector(
+                    onTap: () {
+                      // 预留接听逻辑（后续接 ZEGO）
+                      setState(() => _isIncoming = false);
+                    },
+                    child: Container(
+                      width: 75, height: 75,
+                      decoration: const BoxDecoration(color: Color(0xFF34C759), shape: BoxShape.circle),
+                      child: const Icon(Icons.call, color: Colors.white, size: 36),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 80),
+            ],
           ),
         ),
       );
     }
 
+    // ================= A端/普通状态：拨号盘 =================
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [bgColorTop, bgColorBottom],
-          ),
-        ),
-        child: SafeArea(
-          child: IndexedStack(
-            index: _currentIndex,
-            children: [
-              _buildInternalTab('个人收藏', Icons.star_border, textColor),
-              _buildInternalTab('最近通话', Icons.access_time, textColor),
-              _buildInternalTab('通讯录', Icons.person_outline, textColor),
-              _buildDialerTab(textColor, keyBgColor, keyTextColor),
-              _buildInternalTab('语音留言', Icons.voicemail, textColor),
-            ],
-          ),
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: IndexedStack(
+          index: _currentIndex,
+          children: [
+            _buildPlaceholderTab('个人收藏', Icons.star_border, textColor, bgColor),
+            _buildPlaceholderTab('最近通话', Icons.access_time, textColor, bgColor),
+            _buildPlaceholderTab('通讯录', Icons.person_outline, textColor, bgColor),
+            _buildDialerTab(textColor, keyBgColor, textColor),
+            _buildPlaceholderTab('语音留言', Icons.voicemail, textColor, bgColor),
+          ],
         ),
       ),
       bottomNavigationBar: _buildBottomNavBar(isDark, textColor),
@@ -140,7 +142,7 @@ class _DialerScreenState extends State<DialerScreen> {
 
   Widget _buildBottomNavBar(bool isDark, Color textColor) {
     return Container(
-      height: 85,
+      height: 80,
       decoration: BoxDecoration(
         color: isDark ? Colors.black : Colors.white,
         border: Border(top: BorderSide(color: isDark ? Colors.white12 : Colors.black12, width: 0.5)),
@@ -160,29 +162,32 @@ class _DialerScreenState extends State<DialerScreen> {
 
   Widget _buildNavItem(int index, IconData icon, IconData activeIcon, String label) {
     bool isActive = _currentIndex == index;
-    Color activeColor = const Color(0xFF0A84FF);
     return GestureDetector(
       onTap: () => setState(() => _currentIndex = index),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(isActive ? activeIcon : icon, color: isActive ? activeColor : Colors.grey, size: 28),
+          Icon(isActive ? activeIcon : icon, color: isActive ? const Color(0xFF0A84FF) : Colors.grey, size: 26),
           const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 10, color: isActive ? activeColor : Colors.grey, fontWeight: isActive ? FontWeight.w500 : FontWeight.normal)),
+          Text(label, style: TextStyle(fontSize: 10, color: isActive ? const Color(0xFF0A84FF) : Colors.grey)),
         ],
       ),
     );
   }
 
-  Widget _buildInternalTab(String title, IconData icon, Color textColor) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 64, color: Colors.grey[600]),
-          const SizedBox(height: 16),
-          Text('暂无$title', style: const TextStyle(color: Colors.grey, fontSize: 18)),
-        ],
+  Widget _buildPlaceholderTab(String title, IconData icon, Color textColor, Color bgColor) {
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(title: Text(title), backgroundColor: bgColor, elevation: 0),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 60, color: Colors.grey[600]),
+            const SizedBox(height: 10),
+            Text('暂无$title', style: const TextStyle(color: Colors.grey, fontSize: 16)),
+          ],
+        ),
       ),
     );
   }
@@ -194,7 +199,7 @@ class _DialerScreenState extends State<DialerScreen> {
           flex: 1,
           child: Container(
             alignment: Alignment.center,
-            child: Text(_inputNumber, style: TextStyle(fontSize: 42, color: textColor, letterSpacing: 3, fontWeight: FontWeight.w400)),
+            child: Text(_inputNumber, style: TextStyle(fontSize: 40, color: textColor, letterSpacing: 2)),
           ),
         ),
         Expanded(
@@ -213,13 +218,13 @@ class _DialerScreenState extends State<DialerScreen> {
           ),
         ),
         Container(
-          height: 110,
+          height: 100,
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               SizedBox(
-                width: 75,
+                width: 70,
                 child: _role == 'A' 
                   ? GestureDetector(
                       onTap: _startFloatingWindow,
@@ -234,20 +239,22 @@ class _DialerScreenState extends State<DialerScreen> {
                 onTap: () async {
                   if (_inputNumber.isNotEmpty) {
                     if (_role == 'A') {
-                      bool connected = await _bleService.scanAndConnect();
+                      // A端：连接并发送 BLE 指令
+                      bool connected = await _bleService.connectToB();
                       if (connected) {
-                         await _bleService.sendCommand('real');
-                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('蓝牙已发送指令')));
+                        await _bleService.sendCommand('real');
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('蓝牙指令已发送')));
                       } else {
-                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('蓝牙未找到B端，请确保B端已打开广播')));
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('未找到B端，请确保B端已打开')));
                       }
                     } else if (_role == 'B') {
-                      setState(() => _isCalling = true);
+                      // B端手动测试变脸
+                      setState(() => _isIncoming = true);
                     }
                   }
                 },
                 child: Container(
-                  width: 75, height: 75,
+                  width: 70, height: 70,
                   decoration: const BoxDecoration(color: Color(0xFF34C759), shape: BoxShape.circle),
                   child: const Icon(Icons.call, color: Colors.white, size: 32),
                 ),
@@ -259,7 +266,7 @@ class _DialerScreenState extends State<DialerScreen> {
                   }
                 },
                 child: Container(
-                  width: 75, alignment: Alignment.center,
+                  width: 70, alignment: Alignment.center,
                   child: _inputNumber.isNotEmpty ? Icon(Icons.backspace_outlined, color: textColor, size: 28) : const SizedBox(),
                 ),
               ),
@@ -283,24 +290,14 @@ class _DialerScreenState extends State<DialerScreen> {
     return GestureDetector(
       onTap: () => _onNumberPress(key),
       child: Container(
-        width: 78, height: 78,
-        decoration: BoxDecoration(
-          color: bgColor, 
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 2,
-              offset: const Offset(0, 1),
-            )
-          ]
-        ),
+        width: 75, height: 75,
+        decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(key, style: TextStyle(fontSize: 34, color: textColor, fontWeight: FontWeight.w400)),
+            Text(key, style: TextStyle(fontSize: 32, color: textColor, fontWeight: FontWeight.w400)),
             if (letter.isNotEmpty)
-              Text(letter, style: TextStyle(fontSize: 10, color: textColor, fontWeight: FontWeight.w600, letterSpacing: 1.5)),
+              Text(letter, style: TextStyle(fontSize: 10, color: textColor, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
           ],
         ),
       ),
