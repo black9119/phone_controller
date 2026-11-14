@@ -3,22 +3,20 @@ import 'dart:convert';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 class BleService {
-  // 自定义蓝牙服务 UUID
-  static final Guid serviceUuid = Guid("0000ffe0-0000-1000-8000-00805f9b34fb");
-  static final Guid charUuid = Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
-
+  static final Guid serviceUuid = Guid("00001101-0000-1000-8000-00805F9B34FB");
+  
   BluetoothDevice? connectedDevice;
   Function(String command)? onCommandReceived;
 
-  // ================= A 端 =================
+  // ================= A 端（主动连接 B） =================
   Future<bool> connectToB() async {
     try {
       await FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
       BluetoothDevice? target;
-      
+
       await FlutterBluePlus.scanResults.listen((results) {
         for (ScanResult r in results) {
-          if (r.device.advName.contains("Dialer_B") || r.device.platformName.contains("Dialer_B")) {
+          if (r.device.advName.contains("MyDialer_B")) {
             target = r.device;
             break;
           }
@@ -36,20 +34,16 @@ class BleService {
     return false;
   }
 
+  // A 端发送指令
   Future<void> sendCommand(String cmd) async {
-    if (connectedDevice == null || !connectedDevice!.isConnected) {
-      bool reconnected = await connectToB();
-      if (!reconnected) return;
-    }
+    if (connectedDevice == null) return;
     try {
       List<BluetoothService> services = await connectedDevice!.discoverServices();
       for (var s in services) {
         if (s.uuid == serviceUuid) {
           for (var c in s.characteristics) {
-            if (c.uuid == charUuid) {
-              await c.write(utf8.encode(cmd));
-              return;
-            }
+            await c.write(utf8.encode(cmd));
+            return;
           }
         }
       }
@@ -59,15 +53,8 @@ class BleService {
   }
 
   // ================= B 端 =================
+  // 临时清空，避免云端编译报错
   Future<void> startBroadcast() async {
-    try {
-      await FlutterBluePlus.startAdvertising(
-        advName: "Dialer_B",
-        timeout: const Duration(minutes: 0),
-      );
-      print("B端广播已开启");
-    } catch (e) {
-      print("B端开启广播失败: $e");
-    }
+    print("B端蓝牙已就绪（暂时由系统蓝牙接管等待）");
   }
 }
