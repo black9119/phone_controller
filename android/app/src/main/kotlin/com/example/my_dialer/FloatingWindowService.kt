@@ -1,24 +1,74 @@
 package com.example.my_dialer
 
 import android.app.*
+import android.bluetooth.BluetoothAdapter
+import android.bluetooth.BluetoothDevice
+import android.bluetooth.BluetoothSocket
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
+import java.io.OutputStream
+import java.util.UUID
 
 class FloatingWindowService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var floatingView: LinearLayout
+    private var bluetoothSocket: BluetoothSocket? = null
+    private var outputStream: OutputStream? = null
+    private var isConnected = false
+    
+    private val MY_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
 
     override fun onCreate() {
         super.onCreate()
         startForegroundServiceCompat()
+        connectToB() // 启动时尝试连接B端
+        initFloatingWindow()
+    }
+
+    private fun connectToB() {
+        val adapter = BluetoothAdapter.getDefaultAdapter()
+        if (adapter == null || !adapter.isEnabled) {
+            Toast.makeText(this, "请开启手机蓝牙", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        Thread {
+            try {
+                var targetDevice: BluetoothDevice? = null
+                for (device in adapter.bondedDevices) {
+                    // 匹配配对过的设备名称（请确保B端手机名字包含B或Phone）
+                    if (device.name.contains("B") || device.name.contains("Phone")) {
+                        targetDevice = device
+                        break
+                    }
+                }
+
+                if (targetDevice != null) {
+                    bluetoothSocket = targetDevice.createRfcommSocketToServiceRecord(MY_UUID)
+                    adapter.cancelDiscovery()
+                    bluetoothSocket?.connect()
+                    outputStream = bluetoothSocket?.outputStream
+                    isConnected = true
+                    showToast("蓝牙已连接: ${targetDevice.name}")
+                } else {
+                    showToast("找不到配对设备，请先在系统蓝牙中配对")
+                }
+            } catch (e: Exception) {
+                showToast("蓝牙连接失败: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun initFloatingWindow() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         floatingView = createFloatingView()
         
@@ -36,7 +86,7 @@ class FloatingWindowService : Service() {
         try {
             windowManager.addView(floatingView, params)
         } catch (e: Exception) {
-            Toast.makeText(this, "悬浮窗添加失败，请检查权限", Toast.LENGTH_LONG).show()
+            showToast("悬浮窗添加失败")
         }
     }
 
@@ -64,8 +114,21 @@ class FloatingWindowService : Service() {
                         }
                         startActivity(intent)
                         stopSelf()
-                    } else {
-                        Toast.makeText(applicationContext, "发送指令: $text", Toast.LENGTH_SHORT).show()
+                        return@setOnClickListener
+                    }
+                    
+                    if (!isConnected) {
+                        showToast("蓝牙未连接")
+                        return@setOnClickListener
+                    }
+                    
+                    try {
+                        // 核心：发送字符串指令给 B 端
+                        outputStream?.write("$cmd\n".toByteArray())
+                        showToast("已发送指令: $text")
+                    } catch (e: Exception) {
+                        showToast("发送失败: ${e.message}")
+                        isConnected = false
                     }
                 }
             }
@@ -91,9 +154,14 @@ class FloatingWindowService : Service() {
         }
     }
 
+    private fun showToast(msg: String) {
+        android.os.Handler(mainLooper).post { Toast.makeText(applicationContext, msg, Toast.LENGTH_SHORT).show() }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         if (::floatingView.isInitialized) windowManager.removeView(floatingView)
+        bluetoothSocket?.close()
     }
     override fun onBind(intent: Intent?): IBinder? = null
 }

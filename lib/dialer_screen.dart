@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_screen.dart';
-import 'ble_service.dart';
 
 class DialerScreen extends StatefulWidget {
   const DialerScreen({super.key});
@@ -15,7 +14,6 @@ class _DialerScreenState extends State<DialerScreen> {
   String _inputNumber = '';
   String _role = '';
   bool _isCalling = false;
-  final BleService _ble = BleService();
   
   static const platform = MethodChannel('com.example.my_dialer/command_channel');
 
@@ -28,6 +26,20 @@ class _DialerScreenState extends State<DialerScreen> {
   void initState() {
     super.initState();
     _loadRole();
+    
+    // 监听原生发来的蓝牙指令（B 端接收后变脸）
+    platform.setMethodCallHandler((call) async {
+      if (call.method == 'onBleCommand') {
+        String command = call.arguments as String;
+        // 收到任意真实指令，立刻让屏幕伪装变脸
+        if (command == 'real' || command == 'voip' || command == 'busy' || command == 'empty') {
+          setState(() {
+            _isCalling = true;
+            _inputNumber = '10086'; // 伪装号码
+          });
+        }
+      }
+    });
   }
 
   Future<void> _loadRole() async {
@@ -35,23 +47,13 @@ class _DialerScreenState extends State<DialerScreen> {
     String role = prefs.getString('device_role') ?? '未分配';
     setState(() => _role = role);
 
-    // 根据角色初始化蓝牙
-    if (role == 'A') {
-      _ble.connectToB().then((success) {
-        if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('蓝牙已连接 B 端')));
-        }
-      });
-    } else if (role == 'B') {
-      _ble.startBroadcast();
-      _ble.onCommandReceived = (command) {
-        if (command == 'start_call') {
-          setState(() {
-            _isCalling = true;
-            _inputNumber = '10086'; // 伪装号码
-          });
-        }
-      };
+    // 如果是 B 端，立刻通知原生开启蓝牙监听
+    if (role == 'B') {
+      try {
+        await platform.invokeMethod('startBleServer');
+      } catch (e) {
+        debugPrint("开启蓝牙服务端失败: $e");
+      }
     }
   }
 
@@ -75,18 +77,21 @@ class _DialerScreenState extends State<DialerScreen> {
   @override
   Widget build(BuildContext context) {
     bool isDark = Theme.of(context).brightness == Brightness.dark;
+    
     Color bgColorTop = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     Color bgColorBottom = isDark ? const Color(0xFF151515) : const Color(0xFFF2F2F7);
     Color textColor = isDark ? Colors.white : Colors.black;
     Color keyBgColor = isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE5E5EA);
     Color keyTextColor = isDark ? Colors.white : Colors.black;
 
+    // ================= B端：完美伪装“正在呼叫”界面 =================
     if (_isCalling) {
       return Scaffold(
         body: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              begin: Alignment.topCenter, end: Alignment.bottomCenter,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
               colors: isDark ? [const Color(0xFF2C2C2E), const Color(0xFF000000)] : [Colors.white, const Color(0xFFF2F2F7)],
             ),
           ),
@@ -97,7 +102,9 @@ class _DialerScreenState extends State<DialerScreen> {
                 Text('正在呼叫...', style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 16, letterSpacing: 1.2)),
                 const SizedBox(height: 10),
                 Text(_inputNumber, style: TextStyle(color: textColor, fontSize: 44, fontWeight: FontWeight.w400, letterSpacing: 2)),
+                
                 const Spacer(flex: 2),
+                
                 Column(
                   children: [
                     GestureDetector(
@@ -120,11 +127,13 @@ class _DialerScreenState extends State<DialerScreen> {
       );
     }
 
+    // ================= 主界面：iOS 拨号盘与内部 Tab =================
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter, end: Alignment.bottomCenter,
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
             colors: [bgColorTop, bgColorBottom],
           ),
         ),
@@ -241,11 +250,8 @@ class _DialerScreenState extends State<DialerScreen> {
                 onTap: () {
                   if (_inputNumber.isNotEmpty) {
                     if (_role == 'A') {
-                      // A 端：触发蓝牙发送指令
-                      _ble.sendCommand('start_call');
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('蓝牙指令已发送')));
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请在悬浮窗上点击发送指令')));
                     } else if (_role == 'B') {
-                      // B 端：本地伪装
                       setState(() => _isCalling = true);
                     }
                   }
@@ -292,7 +298,11 @@ class _DialerScreenState extends State<DialerScreen> {
           color: bgColor, 
           shape: BoxShape.circle,
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 2, offset: const Offset(0, 1))
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 2,
+              offset: const Offset(0, 1),
+            )
           ]
         ),
         child: Column(
