@@ -14,7 +14,7 @@ class _DialerScreenState extends State<DialerScreen> {
   int _currentIndex = 3; 
   String _inputNumber = '';
   String _role = '';
-  bool _isIncoming = false; // B端是否显示来电
+  bool _isIncoming = false; 
   
   final BleService _bleService = BleService();
   static const platform = MethodChannel('com.example.my_dialer/command_channel');
@@ -29,14 +29,15 @@ class _DialerScreenState extends State<DialerScreen> {
     super.initState();
     _loadRole();
     
-    // B端监听从原生（或底层BLE）传上来的指令
-    platform.setMethodCallHandler((call) async {
-      if (call.method == 'onBleCommand') {
+    // B端收到指令的回调
+    _bleService.onCommandReceived = (command) {
+      if (command == 'real' || command == 'voip') {
         setState(() {
-          _isIncoming = true; // 触发变脸
+          _isIncoming = true;
+          _inputNumber = '10086';
         });
       }
-    });
+    };
   }
 
   Future<void> _loadRole() async {
@@ -45,8 +46,8 @@ class _DialerScreenState extends State<DialerScreen> {
     setState(() => _role = role);
 
     if (role == 'B') {
-      // B端启动 BLE 广播
-      await _bleService.startBleBroadcast();
+      // B 端启动真正的广播
+      await _bleService.startBroadcasting();
     }
   }
 
@@ -74,7 +75,7 @@ class _DialerScreenState extends State<DialerScreen> {
     Color textColor = isDark ? Colors.white : Colors.black;
     Color keyBgColor = isDark ? const Color(0xFF333333) : const Color(0xFFE5E5EA);
 
-    // ================= B端（苹果）：完美接听变脸界面 =================
+    // B端（苹果）：完美伪装接听界面
     if (_role == 'B' && _isIncoming) {
       return Scaffold(
         backgroundColor: const Color(0xFF1C1C1E),
@@ -84,14 +85,11 @@ class _DialerScreenState extends State<DialerScreen> {
               const SizedBox(height: 40),
               const Text('来电', style: TextStyle(color: Colors.white54, fontSize: 18)),
               const SizedBox(height: 10),
-              Text(_inputNumber.isEmpty ? '10086' : _inputNumber, 
-                style: const TextStyle(color: Colors.white, fontSize: 44, fontWeight: FontWeight.w300)),
+              Text(_inputNumber, style: const TextStyle(color: Colors.white, fontSize: 44, fontWeight: FontWeight.w300)),
               const Spacer(),
-              // 接听与挂断按钮
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  // 挂断
                   GestureDetector(
                     onTap: () => setState(() => _isIncoming = false),
                     child: Container(
@@ -100,12 +98,8 @@ class _DialerScreenState extends State<DialerScreen> {
                       child: const Icon(Icons.call_end, color: Colors.white, size: 36),
                     ),
                   ),
-                  // 接听
                   GestureDetector(
-                    onTap: () {
-                      // 预留接听逻辑（后续接 ZEGO）
-                      setState(() => _isIncoming = false);
-                    },
+                    onTap: () => setState(() => _isIncoming = false),
                     child: Container(
                       width: 75, height: 75,
                       decoration: const BoxDecoration(color: Color(0xFF34C759), shape: BoxShape.circle),
@@ -121,7 +115,7 @@ class _DialerScreenState extends State<DialerScreen> {
       );
     }
 
-    // ================= A端/普通状态：拨号盘 =================
+    // 保持现有 UI 完全不变
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
@@ -239,8 +233,8 @@ class _DialerScreenState extends State<DialerScreen> {
                 onTap: () async {
                   if (_inputNumber.isNotEmpty) {
                     if (_role == 'A') {
-                      // A端：连接并发送 BLE 指令
-                      bool connected = await _bleService.connectToB();
+                      // A端：BLE扫描并发送
+                      bool connected = await _bleService.scanAndConnect();
                       if (connected) {
                         await _bleService.sendCommand('real');
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('蓝牙指令已发送')));
@@ -248,7 +242,6 @@ class _DialerScreenState extends State<DialerScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('未找到B端，请确保B端已打开')));
                       }
                     } else if (_role == 'B') {
-                      // B端手动测试变脸
                       setState(() => _isIncoming = true);
                     }
                   }

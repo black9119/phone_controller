@@ -1,21 +1,28 @@
+import 'dart:async';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 
 class BleService {
-  // 自定义 BLE 服务与特征值 UUID
+  // 统一的服务 UUID
   static final Guid serviceUuid = Guid("0000ffe0-0000-1000-8000-00805f9b34fb");
   static final Guid charUuid = Guid("0000ffe1-0000-1000-8000-00805f9b34fb");
 
+  final FlutterBlePeripheral _peripheral = FlutterBlePeripheral();
   BluetoothDevice? connectedDevice;
+  
+  // B端接收指令的回调
+  Function(String command)? onCommandReceived;
 
-  // A 端（安卓）：扫描并连接 B 端
-  Future<bool> connectToB() async {
+  // ================= A 端（安卓）：扫描并连接 =================
+  Future<bool> scanAndConnect() async {
     try {
       await FlutterBluePlus.startScan(timeout: const Duration(seconds: 15));
       BluetoothDevice? target;
 
       FlutterBluePlus.scanResults.listen((results) {
         for (ScanResult r in results) {
-          if (r.device.advName.contains("MyDialer_B")) {
+          // 找 B 端的广播名字
+          if (r.device.advName.contains("MyDialer_B") || r.device.name.contains("MyDialer_B")) {
             target = r.device;
             break;
           }
@@ -52,19 +59,41 @@ class BleService {
         }
       }
     } catch (e) {
-      print("发送指令失败: $e");
+      print("发送失败: $e");
     }
   }
 
-  // B 端（iOS）：尝试开启 BLE 广播（如果库支持）
-  Future<void> startBleBroadcast() async {
+  // ================= B 端（苹果）：开启真正的广播 =================
+  Future<void> startBroadcasting() async {
     try {
-      // 注意：由于当前锁定的是 1.31.15 版本，部分广播 API 可能不支持
-      // 如果报错，需替换为 flutter_ble_peripheral 插件
-      // await FlutterBluePlus.startAdvertising(advName: "MyDialer_B");
-      print("准备开启 BLE 广播，等待 A 端连接...");
+      // 监听 A 端发来的数据
+      _peripheral.onDataReceived.listen((event) {
+        if (onCommandReceived != null) {
+          // 将收到的字节转为字符串触发回调
+          String cmd = String.fromCharCodes(event.data);
+          onCommandReceived!(cmd);
+        }
+      });
+
+      // 开启广播，让安卓能搜到
+      await _peripheral.startAdvertising(
+        advertiseData: AdvertiseData(
+          serviceUuid: "0000ffe0-0000-1000-8000-00805f9b34fb",
+          localName: "MyDialer_B",
+        ),
+        settings: const AdvertiseSettings(
+          connectable: true,
+          timeout: Duration(minutes: 0), // 永不超时
+        ),
+      );
+      print("B端广播已开启，设备名: MyDialer_B");
     } catch (e) {
-      print("广播异常: $e");
+      print("B端开启广播失败: $e");
     }
+  }
+
+  // 停止广播
+  Future<void> stopBroadcasting() async {
+    await _peripheral.stopAdvertising();
   }
 }

@@ -33,7 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListTile(title: const Text('当前角色'), subtitle: Text(_role, style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold))),
           const Divider(),
           ListTile(title: const Text('选为 A 端 (安卓控制端)'), onTap: () => _setRole('A')),
-          ListTile(title: const Text('选为 B 端 (伪装执行端)'), onTap: () => _setRole('B')),
+          ListTile(title: const Text('选为 B 端 (苹果执行端)'), onTap: () => _setRole('B')),
           ListTile(title: const Text('选为 C 端 (变声端)'), onTap: () => _setRole('C')),
         ],
       ),

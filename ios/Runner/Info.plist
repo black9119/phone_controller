@@ -49,5 +49,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>需要蓝牙权限来接收指令</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>需要蓝牙外设权限来广播</string>
 </dict>
 </plist>

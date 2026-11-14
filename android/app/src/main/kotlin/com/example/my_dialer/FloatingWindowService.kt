@@ -1,76 +1,27 @@
 package com.example.my_dialer
 
 import android.app.*
-import android.bluetooth.BluetoothAdapter
-import android.bluetooth.BluetoothDevice
-import android.bluetooth.BluetoothSocket
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
-import java.io.OutputStream
-import java.util.UUID
+import io.flutter.plugin.common.MethodChannel
 
 class FloatingWindowService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var floatingView: LinearLayout
-    private var bluetoothSocket: BluetoothSocket? = null
-    private var outputStream: OutputStream? = null
-    private var isConnected = false
-    
-    private val MY_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+    private val CHANNEL = "com.example.my_dialer/command_channel"
 
     override fun onCreate() {
         super.onCreate()
         startForegroundServiceCompat()
         initFloatingWindow()
-        connectBluetooth()
-    }
-
-    private fun connectBluetooth() {
-        val adapter = BluetoothAdapter.getDefaultAdapter()
-        if (adapter == null || !adapter.isEnabled) {
-            showToast("请开启手机蓝牙")
-            return
-        }
-
-        Thread {
-            try {
-                var targetDevice: BluetoothDevice? = null
-                for (device in adapter.bondedDevices) {
-                    val name = device.name ?: ""
-                    if (name.contains("B") || name.contains("Phone") || name.contains("iPhone") || name.contains("Android")) {
-                        targetDevice = device
-                        break
-                    }
-                }
-
-                if (targetDevice == null) {
-                    // 修复点 1：去掉 runOnUiThread
-                    android.os.Handler(mainLooper).post { showToast("未找到已配对的B端") }
-                    return@Thread
-                }
-
-                bluetoothSocket = targetDevice.createRfcommSocketToServiceRecord(MY_UUID)
-                adapter.cancelDiscovery()
-                bluetoothSocket?.connect()
-                outputStream = bluetoothSocket?.outputStream
-                isConnected = true
-                // 修复点 2：去掉 runOnUiThread
-                android.os.Handler(mainLooper).post { showToast("蓝牙连接成功: ${targetDevice.name}") }
-            } catch (e: Exception) {
-                isConnected = false
-                // 修复点 3：去掉 runOnUiThread
-                android.os.Handler(mainLooper).post { showToast("连接失败: ${e.message}") }
-            }
-        }.start()
     }
 
     private fun initFloatingWindow() {
@@ -91,7 +42,7 @@ class FloatingWindowService : Service() {
         try {
             windowManager.addView(floatingView, params)
         } catch (e: Exception) {
-            showToast("悬浮窗添加失败")
+            Toast.makeText(this, "悬浮窗添加失败，请检查权限", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -126,17 +77,16 @@ class FloatingWindowService : Service() {
                         return@setOnClickListener
                     }
                     
-                    if (!isConnected) {
-                        showToast("蓝牙未连接")
-                        return@setOnClickListener
-                    }
-                    
                     try {
-                        outputStream?.write("$cmd\n".toByteArray())
-                        showToast("已发送: $text")
+                        val engine = io.flutter.embedding.engine.FlutterEngineCache.getInstance().get("main_engine")
+                        if (engine != null) {
+                            MethodChannel(engine.dartExecutor.binaryMessenger, CHANNEL).invokeMethod("onSendBleCommand", cmd)
+                            showToast("已交由系统发送: $text")
+                        } else {
+                            showToast("Flutter引擎未就绪")
+                        }
                     } catch (e: Exception) {
-                        showToast("发送失败: ${e.message}")
-                        isConnected = false
+                        showToast("通信失败: ${e.message}")
                     }
                 }
             }
@@ -169,7 +119,6 @@ class FloatingWindowService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         if (::floatingView.isInitialized) windowManager.removeView(floatingView)
-        bluetoothSocket?.close()
     }
     override fun onBind(intent: Intent?): IBinder? = null
 }
