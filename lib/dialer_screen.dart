@@ -27,15 +27,13 @@ class _DialerScreenState extends State<DialerScreen> {
     super.initState();
     _loadRole();
     
-    // 监听原生发来的蓝牙指令（B 端接收后变脸）
     platform.setMethodCallHandler((call) async {
       if (call.method == 'onBleCommand') {
         String command = call.arguments as String;
-        // 收到任意真实指令，立刻让屏幕伪装变脸
         if (command == 'real' || command == 'voip' || command == 'busy' || command == 'empty') {
           setState(() {
             _isCalling = true;
-            _inputNumber = '10086'; // 伪装号码
+            _inputNumber = '10086';
           });
         }
       }
@@ -47,7 +45,6 @@ class _DialerScreenState extends State<DialerScreen> {
     String role = prefs.getString('device_role') ?? '未分配';
     setState(() => _role = role);
 
-    // 如果是 B 端，立刻通知原生开启蓝牙监听
     if (role == 'B') {
       try {
         await platform.invokeMethod('startBleServer');
@@ -84,7 +81,6 @@ class _DialerScreenState extends State<DialerScreen> {
     Color keyBgColor = isDark ? const Color(0xFF3A3A3C) : const Color(0xFFE5E5EA);
     Color keyTextColor = isDark ? Colors.white : Colors.black;
 
-    // ================= B端：完美伪装“正在呼叫”界面 =================
     if (_isCalling) {
       return Scaffold(
         body: Container(
@@ -102,9 +98,7 @@ class _DialerScreenState extends State<DialerScreen> {
                 Text('正在呼叫...', style: TextStyle(color: textColor.withOpacity(0.6), fontSize: 16, letterSpacing: 1.2)),
                 const SizedBox(height: 10),
                 Text(_inputNumber, style: TextStyle(color: textColor, fontSize: 44, fontWeight: FontWeight.w400, letterSpacing: 2)),
-                
                 const Spacer(flex: 2),
-                
                 Column(
                   children: [
                     GestureDetector(
@@ -127,7 +121,6 @@ class _DialerScreenState extends State<DialerScreen> {
       );
     }
 
-    // ================= 主界面：iOS 拨号盘与内部 Tab =================
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(

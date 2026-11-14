@@ -8,7 +8,6 @@ import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
 import android.widget.Button
@@ -30,14 +29,14 @@ class FloatingWindowService : Service() {
     override fun onCreate() {
         super.onCreate()
         startForegroundServiceCompat()
-        connectToB() // 启动时尝试连接B端
+        connectToB()
         initFloatingWindow()
     }
 
     private fun connectToB() {
         val adapter = BluetoothAdapter.getDefaultAdapter()
         if (adapter == null || !adapter.isEnabled) {
-            Toast.makeText(this, "请开启手机蓝牙", Toast.LENGTH_SHORT).show()
+            showToast("请开启手机蓝牙")
             return
         }
 
@@ -45,7 +44,6 @@ class FloatingWindowService : Service() {
             try {
                 var targetDevice: BluetoothDevice? = null
                 for (device in adapter.bondedDevices) {
-                    // 匹配配对过的设备名称（请确保B端手机名字包含B或Phone）
                     if (device.name.contains("B") || device.name.contains("Phone")) {
                         targetDevice = device
                         break
@@ -97,9 +95,14 @@ class FloatingWindowService : Service() {
             setPadding(20, 20, 20, 20)
         }
         
+        // 这里就是你想要的 7 个按钮！
         val buttons = listOf(
             "APP语音拨号" to "voip",
             "真实电话拨号" to "real",
+            "播放忙音" to "busy",
+            "播放空号" to "empty",
+            "播放正忙" to "user_busy",
+            "静音控制" to "mute",
             "↩️ 返回拨号盘" to "RETURN"
         )
 
@@ -123,7 +126,6 @@ class FloatingWindowService : Service() {
                     }
                     
                     try {
-                        // 核心：发送字符串指令给 B 端
                         outputStream?.write("$cmd\n".toByteArray())
                         showToast("已发送指令: $text")
                     } catch (e: Exception) {
